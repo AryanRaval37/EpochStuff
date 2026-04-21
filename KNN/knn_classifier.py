@@ -41,7 +41,7 @@ test_data = np.array([
     [185, 7.7, 2]   # Expected: Orange
 ], dtype=float)
 myKNN.fit(X, y)
-predictions = myKNN.predict(test_data)
+predictions = myKNN.predict(test_data, weighted=True)
 print(predictions)
 
 
