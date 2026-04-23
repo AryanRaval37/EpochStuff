@@ -22,6 +22,8 @@ y = data[:, -1]   # Last column (labels)
 # Banana - 010   = 2
 # Orange - 001   = 1
 # Note: Helpful for some reason... remember to think about why
+# Almost certainly this is just bad...
+# A separate vector with 3 entries is required.
 
 # Look into np.eye - probably faster for one hot encoding
 label_map = {'Apple': 1, 'Banana': 2, 'Orange': 4}
