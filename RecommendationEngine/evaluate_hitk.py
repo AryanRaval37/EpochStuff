@@ -1,3 +1,6 @@
+
+# ! Partly AI generated file alert
+
 from pathlib import Path
 
 import numpy as np
@@ -5,15 +8,19 @@ import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 
-from mf_model import MF, MLP
+from models import MF, MLP, NeuMF
 
-# Simple config
-MODEL_PATH = "models/mf_model.pt"
+# === Configuration Variables ===
+MODEL_TYPE = "neumf"  # Options: "mf", "mlp", "neumf"
+MODEL_PATH = f"models/{MODEL_TYPE}_model.pt"
 DATA_PATH = "interactions.csv"
+
+# Evaluation setup
 K = 10
 NUM_NEG = 100
 TEST_SIZE = 0.1
 EVAL_SEED = 37
+# ===============================
 
 def get_device():
     if torch.backends.mps.is_available():
@@ -22,30 +29,32 @@ def get_device():
         return torch.device("cuda")
     return torch.device("cpu")
 
+
+# ! Load model function : AI Generated
 def load_model_checkpoint(model_path, device):
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=True)
 
     if not isinstance(checkpoint, dict) or "model_state_dict" not in checkpoint:
         raise ValueError(
             "Checkpoint format not recognized. Expected dict with key 'model_state_dict'."
         )
 
-    state_dict = checkpoint["model_state_dict"]
-    user_shape = state_dict["user_emb.weight"].shape
-    item_shape = state_dict["item_emb.weight"].shape
+    model_type = str(checkpoint.get("model_type", MODEL_TYPE)).lower()
+    
+    if model_type == "neumf":
+        model, checkpoint = NeuMF.load_checkpoint(model_path, device=device)
+        return model, checkpoint
 
-    num_users = int(checkpoint.get("num_users", user_shape[0]))
-    num_items = int(checkpoint.get("num_items", item_shape[0]))
-    emb_dim = int(checkpoint.get("emb_dim", user_shape[1]))
-    model_type = str(checkpoint.get("model_type", "mf")).lower()
+    state_dict = checkpoint["model_state_dict"]
+    num_users = int(checkpoint["num_users"])
+    num_items = int(checkpoint["num_items"])
+    emb_dim = int(checkpoint["emb_dim"])
 
     if model_type == "mf":
         model = MF(num_users=num_users, num_items=num_items, emb_dim=emb_dim).to(device)
     elif model_type == "mlp":
-        hidden_dims = checkpoint.get("hidden_dims", [128, 64, 32])
-        hidden_dims = tuple(int(x) for x in hidden_dims)
-        dropout = checkpoint.get("dropout", 0.2)
-        dropout = 0.2 if dropout is None else float(dropout)
+        hidden_dims = tuple(int(x) for x in checkpoint["hidden_dims"])
+        dropout = float(checkpoint["dropout"])
         model = MLP(
             num_users=num_users,
             num_items=num_items,
@@ -60,6 +69,8 @@ def load_model_checkpoint(model_path, device):
     model.eval()
     return model, checkpoint
 
+
+# Same as hitk given
 def hit_at_k(model, test_df, full_df, k=10, num_neg=100, device=None):
     if device is None:
         device = get_device()
@@ -71,6 +82,8 @@ def hit_at_k(model, test_df, full_df, k=10, num_neg=100, device=None):
     total = len(test_df)
 
     interacted_items = full_df.groupby("user_id")["item_id"].apply(set).to_dict()
+    
+    # NOTE: Important: here i made this unique but I think it was just to numpy as array.
     all_items = full_df["item_id"].unique()
 
     with torch.no_grad():
@@ -119,7 +132,7 @@ def main():
 
     # get the dataset splitting seed to match train test split of training
     split_seed = int(checkpoint.get("split_seed", 37))
-    model_type = str(checkpoint.get("model_type", "mf")).lower()
+    model_type = str(checkpoint.get("model_type", MODEL_TYPE)).lower()
 
     _, test_df = train_test_split(df, test_size=TEST_SIZE, random_state=split_seed)
 
